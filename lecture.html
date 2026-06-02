@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VR Lecture Space — 姿勢トラッキング付きVR講義空間</title>
+  <meta name="description" content="A-FrameベースのVR空間でオンデマンド授業を受講し、MediaPipeで姿勢データをリアルタイムに取得する学習システム">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.4.2/aframe.min.js"></script>
+  <link rel="stylesheet" href="lecture.css">
+</head>
+
+<body>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay">
+    <div class="loader-ring"></div>
+    <div class="loader-text">姿勢検出モデルを読み込み中...</div>
+  </div>
+
+  <!-- Control Panel -->
+  <div id="control-panel">
+    <span class="panel-label">🎓 VR Lecture</span>
+    <div class="divider"></div>
+    <div class="file-input-wrapper">
+      <input type="file" id="videoInput" accept="video/mp4,video/*">
+      <div class="file-input-label">
+        <span class="icon">📁</span> 動画を選択
+      </div>
+    </div>
+    <div class="file-input-wrapper">
+      <input type="file" id="vttInput" accept=".vtt">
+      <div class="file-input-label">
+        <span class="icon">📝</span> 字幕(VTT)を選択
+      </div>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button id="loadBtn" class="btn btn-primary" style="flex: 1;">
+        <span class="btn-icon">▶</span> 再生
+      </button>
+      <button id="pauseBtn" class="btn" style="flex: 1; background: #64748b; color: white;">
+        <span class="btn-icon">⏸</span> 一時停止
+      </button>
+    </div>
+    <div class="divider"></div>
+    <button id="startPoseBtn" class="btn btn-success">
+      <span class="btn-icon">📷</span> 姿勢トラッキング開始
+    </button>
+    <button id="stopPoseBtn" class="btn btn-danger" style="display:none;">
+      <span class="btn-icon">⏹</span> 停止
+    </button>
+  </div>
+
+  <!-- Webcam PiP -->
+  <div id="webcam-pip" class="hidden">
+    <div class="pip-header">
+      <div class="pip-title">
+        <span class="status-dot" id="statusDot"></span>
+        Pose Tracking
+      </div>
+    </div>
+    <div class="webcam-container">
+      <video id="webcamVideo" autoplay playsinline muted></video>
+      <canvas id="poseCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- AI Supporter Panel -->
+  <div id="ai-supporter-panel" class="hidden">
+    <div class="panel-title" id="ai-supporter-title">🤖 AIサポーター</div>
+    <div class="ai-message-box">
+      <div id="ai-message-text">あなたの学習をサポートします。</div>
+    </div>
+    <div class="ai-actions" id="ai-actions-container">
+      <!-- Buttons will be injected here via JS -->
+    </div>
+  </div>
+
+  <!-- Posture Score Panel -->
+  <div id="posture-panel" class="hidden">
+    <div class="panel-title">📊 姿勢スコア</div>
+
+    <!-- Overall Score Circle -->
+    <div class="score-circle-wrapper">
+      <div class="score-circle">
+        <svg viewBox="0 0 100 100">
+          <circle class="bg" cx="50" cy="50" r="45"></circle>
+          <circle class="progress" id="overallProgress" cx="50" cy="50" r="45"></circle>
+        </svg>
+        <div class="score-value">
+          <div class="score-number" id="overallScoreNum">--</div>
+          <div class="score-label-text">Overall</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Individual Scores -->
+    <div class="score-item">
+      <div class="score-icon">🦴</div>
+      <div class="score-info">
+        <div class="score-name">肩の傾き</div>
+        <div class="score-bar"><div class="score-bar-fill" id="shoulderBar" style="width:0%"></div></div>
+      </div>
+      <div class="score-val" id="shoulderVal">--</div>
+    </div>
+
+    <div class="score-item">
+      <div class="score-icon">🧠</div>
+      <div class="score-info">
+        <div class="score-name">頭の前傾</div>
+        <div class="score-bar"><div class="score-bar-fill" id="headBar" style="width:0%"></div></div>
+      </div>
+      <div class="score-val" id="headVal">--</div>
+    </div>
+
+    <div class="score-item">
+      <div class="score-icon">🏋️</div>
+      <div class="score-info">
+        <div class="score-name">上半身の傾き</div>
+        <div class="score-bar"><div class="score-bar-fill" id="leanBar" style="width:0%"></div></div>
+      </div>
+      <div class="score-val" id="leanVal">--</div>
+    </div>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="status-bar">
+    <div class="status-item">
+      <span class="status-icon">🔗</span>
+      <span>Session: <strong id="statusSession">---</strong></span>
+    </div>
+    <div class="status-divider"></div>
+    <div class="status-item">
+      <span class="status-icon">📡</span>
+      <span id="statusTracking">停止中</span>
+    </div>
+    <div class="status-divider"></div>
+    <div class="status-item">
+      <span class="status-icon">👁️</span>
+      <span>注目: <strong id="statusGaze">---</strong></span>
+    </div>
+    <div class="status-divider"></div>
+    <div class="status-item">
+      <span class="status-icon">💾</span>
+      <span id="statusDataPoints">0 pts</span>
+    </div>
+  </div>
+
+  <!-- Hidden canvases for VR textures -->
+  <canvas id="vrScoreCanvas" width="512" height="512" style="display:none;"></canvas>
+
+  <!-- ==================== A-Frame Scene ==================== -->
+  <a-scene>
+    <a-assets>
+      <video id="mainVideo" loop="true" crossorigin="anonymous" playsinline webkit-playsinline></video>
+    </a-assets>
+
+    <!-- Sky: dark blue gradient feel -->
+    <a-sky color="#0c1222"></a-sky>
+
+    <!-- Floor: dark reflective surface -->
+    <a-plane position="0 0 0" rotation="-90 0 0" width="60" height="60"
+      color="#111827" roughness="0.3" metalness="0.1"></a-plane>
+
+    <!-- Ambient grid lines on floor for depth perception -->
+    <a-entity id="grid">
+      <a-plane position="0 0.01 0" rotation="-90 0 0" width="60" height="60"
+        material="src: #gridTexture; repeat: 30 30; transparent: true; opacity: 0.08; shader: flat;"
+        visible="false"></a-plane>
+    </a-entity>
+
+    <!-- ===== LECTURE SCREEN (Front Center) ===== -->
+    <a-entity id="main-screen" position="0 3 -8">
+      <!-- Screen backing -->
+      <a-plane width="12.4" height="7.4" color="#1e293b"
+        position="0 0 -0.05" material="shader: flat"></a-plane>
+      <!-- Thin accent border -->
+      <a-plane width="12.6" height="7.6" color="#6366f1"
+        position="0 0 -0.06" material="shader: flat"></a-plane>
+      <!-- Video display (gaze target) -->
+      <a-video src="#mainVideo" width="12" height="7" position="0 0 0"
+        class="gaze-target" data-label="screen"></a-video>
+      <!-- Screen label -->
+      <a-text value="LECTURE SCREEN" position="0 4.2 0" align="center"
+        color="#64748b" width="6" font="mozillavr"></a-text>
+      <!-- Instructions -->
+      <a-text id="screenInstructions" value="MP4ファイルをアップロードして\n講義を開始してください"
+        position="0 -4.2 0" align="center" color="#94a3b8" width="5" font="mozillavr"></a-text>
+    </a-entity>
+
+    <!-- ===== POSTURE SCORE DISPLAY (Right Side in VR) ===== -->
+    <a-entity id="score-display" position="8 2.5 -5" rotation="0 -35 0">
+      <a-plane width="4" height="4" class="gaze-target" data-label="scoreBoard"
+        material="shader: flat; src: #vrScoreCanvas; transparent: false"></a-plane>
+      <a-plane width="4.2" height="4.2" color="#6366f1"
+        position="0 0 -0.02" material="shader: flat"></a-plane>
+      <a-text value="POSTURE ANALYTICS" position="0 2.4 0" align="center"
+        color="#64748b" width="3" font="mozillavr"></a-text>
+    </a-entity>
+
+    <!-- ===== AMBIENT DECORATIONS ===== -->
+
+    <!-- Left wall accent panel -->
+    <a-entity position="-10 3 -3" rotation="0 20 0">
+      <a-plane width="0.1" height="6" color="#6366f1"
+        material="shader: flat; emissive: #6366f1; emissiveIntensity: 0.5"></a-plane>
+    </a-entity>
+
+    <!-- Right wall accent panel -->
+    <a-entity position="10 3 -3" rotation="0 -20 0">
+      <a-plane width="0.1" height="6" color="#818cf8"
+        material="shader: flat; emissive: #818cf8; emissiveIntensity: 0.5"></a-plane>
+    </a-entity>
+
+    <!-- Floating orb decorations -->
+    <a-sphere position="-6 5 -10" radius="0.3" color="#6366f1"
+      material="emissive: #6366f1; emissiveIntensity: 0.8; opacity: 0.6; transparent: true">
+      <a-animation attribute="position" to="-6 5.5 -10" direction="alternate"
+        dur="3000" repeat="indefinite" easing="ease-in-out-sine"></a-animation>
+    </a-sphere>
+    <a-sphere position="6 4 -12" radius="0.2" color="#818cf8"
+      material="emissive: #818cf8; emissiveIntensity: 0.8; opacity: 0.4; transparent: true">
+      <a-animation attribute="position" to="6 4.6 -12" direction="alternate"
+        dur="4000" repeat="indefinite" easing="ease-in-out-sine"></a-animation>
+    </a-sphere>
+    <a-sphere position="0 6 -15" radius="0.15" color="#a78bfa"
+      material="emissive: #a78bfa; emissiveIntensity: 0.9; opacity: 0.5; transparent: true">
+      <a-animation attribute="position" to="0 6.4 -15" direction="alternate"
+        dur="2500" repeat="indefinite" easing="ease-in-out-sine"></a-animation>
+    </a-sphere>
+
+    <!-- Desk surface in front of viewer -->
+    <a-box position="0 0.7 -1.5" width="3" height="0.05" depth="1"
+      color="#1e293b" material="roughness: 0.4; metalness: 0.2"></a-box>
+
+    <!-- Lighting -->
+    <a-light type="ambient" color="#334155" intensity="0.4"></a-light>
+    <a-light type="point" position="0 6 -5" intensity="0.6" color="#e2e8f0"
+      distance="20" decay="1.5"></a-light>
+    <a-light type="point" position="-5 4 -3" intensity="0.2" color="#6366f1"
+      distance="12" decay="2"></a-light>
+    <a-light type="point" position="5 4 -3" intensity="0.2" color="#818cf8"
+      distance="12" decay="2"></a-light>
+
+    <!-- Camera with cursor (tracks gaze targets) -->
+    <a-camera id="vrCamera" position="0 1.6 0">
+      <a-cursor id="gazeCursor" color="#6366f1" fuse="false"
+        raycaster="objects: .gaze-target, .clickable; interval: 200"></a-cursor>
+    </a-camera>
+  </a-scene>
+
+  <!-- Client Script (ES Module) -->
+  <script type="module" src="lecture-client.js"></script>
+</body>
+
+</html>
