@@ -1,0 +1,6 @@
+.venv
+.vscode
+node_modules
+pose_data
+uploads
+.env
