@@ -50,10 +50,11 @@ const state = {
   _gazeHistory: [], // recent lookingAt values for stability
 };
 
-// Audio variables
+// Audio & Worker variables
 let audioContext = null;
 let audioAnalyser = null;
 let audioDataArray = null;
+let trackingWorker = null;
 
 // ========== DOM Elements ==========
 const $ = (s) => document.getElementById(s);
@@ -182,7 +183,20 @@ async function startWebcam() {
     }
 
     showToast("📷 カメラ・マイク起動・トラッキング開始");
-    detectPose();
+    
+    // Create a Web Worker from a Blob to act as a background timer (approx 30fps)
+    const workerCode = `
+      let interval;
+      self.onmessage = function(e) {
+        if (e.data === 'start') interval = setInterval(() => postMessage('tick'), 33);
+        if (e.data === 'stop') clearInterval(interval);
+      };
+    `;
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    trackingWorker = new Worker(URL.createObjectURL(blob));
+    trackingWorker.onmessage = () => detectPose();
+    trackingWorker.postMessage('start');
+    
   } catch (e) {
     console.error("Webcam error:", e);
     showToast("⚠️ カメラ・マイクへのアクセスに失敗しました");
@@ -197,6 +211,11 @@ function stopWebcam() {
   }
   if (audioContext && audioContext.state !== 'closed') {
     audioContext.close();
+  }
+  if (trackingWorker) {
+    trackingWorker.postMessage('stop');
+    trackingWorker.terminate();
+    trackingWorker = null;
   }
   webcamPip.classList.add("hidden");
   posturePanel.classList.add("hidden");
@@ -218,14 +237,12 @@ function detectPose() {
 
   // Ensure webcam video is playing and has valid dimensions
   if (webcamVideo.readyState < 2 || webcamVideo.videoWidth === 0) {
-    requestAnimationFrame(detectPose);
     return;
   }
 
   const now = performance.now();
   // MediaPipe requires strictly increasing timestamps
   if (now <= lastDetectTime) {
-    requestAnimationFrame(detectPose);
     return;
   }
   lastDetectTime = now;
@@ -372,8 +389,6 @@ function detectPose() {
   } catch (e) {
     console.warn("Pose detection frame error:", e.message);
   }
-
-  requestAnimationFrame(detectPose);
 }
 
 // ========== Skeleton Drawing ==========
@@ -780,9 +795,9 @@ function checkAITriggers() {
   if (videoActive && isDistracted) {
     if (!tracker.distractionStart) tracker.distractionStart = now;
     else if (now - tracker.distractionStart > 5000) {
-      mainVideo.pause(); // Auto pause video
-      showAIMessage('B', "少し疲れが見えますね。動画を一時停止しました。深呼吸してリフレッシュしましょう！", [
-        { label: "▶ 再開する", onClick: () => { mainVideo.play(); setDefaultAIMessage(); tracker.distractionStart = null; } }
+      // mainVideo.pause(); // Auto pause video (Disabled for continuous data collection)
+      showAIMessage('B', "少し疲れが見えますね。深呼吸してリフレッシュしましょう！", [
+        { label: "✅ 了解", onClick: () => { setDefaultAIMessage(); tracker.distractionStart = null; } }
       ]);
       tracker.distractionStart = null;
     }
