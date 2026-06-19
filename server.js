@@ -422,10 +422,16 @@ app.get('/lecture', (req, res) => {
   res.sendFile(path.join(__dirname, 'lecture.html'));
 });
 
+// 講義ページ (ML版)
+app.get('/lecture-ml', (req, res) => {
+  res.sendFile(path.join(__dirname, 'lecture-ml.html'));
+});
+
 // サーバー起動
 app.listen(port, () => {
   console.log(`サーバーが起動しました: http://localhost:${port}`);
   console.log(`  - メインページ: http://localhost:${port}/`);
   console.log(`  - 講義空間:     http://localhost:${port}/lecture`);
+  console.log(`  - 講義空間(ML): http://localhost:${port}/lecture-ml`);
   console.log(`  - データエクスポート: http://localhost:${port}/api/export/{sessionId}?format=csv`);
 });

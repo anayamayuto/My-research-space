@@ -795,9 +795,9 @@ function checkAITriggers() {
   if (videoActive && isDistracted) {
     if (!tracker.distractionStart) tracker.distractionStart = now;
     else if (now - tracker.distractionStart > 5000) {
-      // mainVideo.pause(); // Auto pause video (Disabled for continuous data collection)
+      mainVideo.pause();
       showAIMessage('B', "少し疲れが見えますね。深呼吸してリフレッシュしましょう！", [
-        { label: "✅ 了解", onClick: () => { setDefaultAIMessage(); tracker.distractionStart = null; } }
+        { label: "✅ 了解", onClick: () => { setDefaultAIMessage(); tracker.distractionStart = null; mainVideo.play(); } }
       ]);
       tracker.distractionStart = null;
     }
