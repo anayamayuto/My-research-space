@@ -227,6 +227,74 @@ app.post('/api/pose-data', (req, res) => {
   }
 });
 
+// ==================== アノテーションデータAPI ====================
+const annotationDataDir = path.join(__dirname, 'annotation_data');
+if (!fs.existsSync(annotationDataDir)) {
+  fs.mkdirSync(annotationDataDir, { recursive: true });
+}
+
+app.post('/api/annotation-data', (req, res) => {
+  try {
+    const { rows } = req.body;
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'rowsが必要です' });
+    }
+
+    const filePath = path.join(annotationDataDir, 'dataset.csv');
+    const isNewFile = !fs.existsSync(filePath);
+    
+    let csvData = "";
+    if (isNewFile) {
+      // Must match buildFeatureVector() in lecture-client-ml.js and ml/preprocess.py
+      csvData += "overall,shoulderTilt,bodyLean,yaw,pitch,rollSin,rollCos,frown,eyeOpenness,handsVisible,isTouchingFace,label\n";
+    }
+
+    rows.forEach(row => {
+      csvData += row.join(',') + '\n';
+    });
+
+    fs.appendFileSync(filePath, csvData);
+
+    console.log(`[Annotation] Added ${rows.length} rows to dataset.csv`);
+    res.json({ success: true, addedRows: rows.length });
+  } catch (error) {
+    console.error('アノテーションデータ保存エラー:', error.message);
+    res.status(500).json({ error: 'データの保存に失敗しました' });
+  }
+});
+
+// ==================== 眠気データAPI ====================
+const drowsinessDataDir = path.join(__dirname, 'drowsiness_data');
+if (!fs.existsSync(drowsinessDataDir)) {
+  fs.mkdirSync(drowsinessDataDir, { recursive: true });
+}
+
+app.post('/api/drowsiness-data', (req, res) => {
+  try {
+    const { rows } = req.body;
+    if (!rows || !Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'rowsが必要です' });
+    }
+
+    const filePath = path.join(drowsinessDataDir, 'dataset.csv');
+    let csvData = "";
+    if (!fs.existsSync(filePath)) {
+      // Must match DROWSY.FEATURE_NAMES in lecture-client-ml.js
+      csvData += "perclos,blinkRate,meanBlinkDur,longBlinks,yawns,nods,pitchStd,pitchDrift,postureStd,elapsedMin,label\n";
+    }
+
+    rows.forEach(row => {
+      csvData += row.join(',') + '\n';
+    });
+
+    fs.appendFileSync(filePath, csvData);
+    res.json({ success: true, addedRows: rows.length });
+  } catch (error) {
+    console.error('眠気データ保存エラー:', error.message);
+    res.status(500).json({ error: 'データの保存に失敗しました' });
+  }
+});
+
 // 姿勢データ履歴取得API
 app.get('/api/pose-history/:sessionId', (req, res) => {
   try {

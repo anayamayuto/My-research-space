@@ -146,9 +146,6 @@
     </div>
   </div>
 
-  <!-- Hidden canvases for VR textures -->
-  <canvas id="vrScoreCanvas" width="512" height="512" style="display:none;"></canvas>
-
   <!-- ==================== A-Frame Scene ==================== -->
   <a-scene>
     <a-assets>
@@ -161,13 +158,6 @@
     <!-- Floor: dark reflective surface -->
     <a-plane position="0 0 0" rotation="-90 0 0" width="60" height="60"
       color="#111827" roughness="0.3" metalness="0.1"></a-plane>
-
-    <!-- Ambient grid lines on floor for depth perception -->
-    <a-entity id="grid">
-      <a-plane position="0 0.01 0" rotation="-90 0 0" width="60" height="60"
-        material="src: #gridTexture; repeat: 30 30; transparent: true; opacity: 0.08; shader: flat;"
-        visible="false"></a-plane>
-    </a-entity>
 
     <!-- ===== LECTURE SCREEN (Front Center) ===== -->
     <a-entity id="main-screen" position="0 3 -8">
@@ -186,16 +176,6 @@
       <!-- Instructions -->
       <a-text id="screenInstructions" value="MP4ファイルをアップロードして\n講義を開始してください"
         position="0 -4.2 0" align="center" color="#94a3b8" width="5" font="mozillavr"></a-text>
-    </a-entity>
-
-    <!-- ===== POSTURE SCORE DISPLAY (Right Side in VR) ===== -->
-    <a-entity id="score-display" position="8 2.5 -5" rotation="0 -35 0">
-      <a-plane width="4" height="4" class="gaze-target" data-label="scoreBoard"
-        material="shader: flat; src: #vrScoreCanvas; transparent: false"></a-plane>
-      <a-plane width="4.2" height="4.2" color="#6366f1"
-        position="0 0 -0.02" material="shader: flat"></a-plane>
-      <a-text value="POSTURE ANALYTICS" position="0 2.4 0" align="center"
-        color="#64748b" width="3" font="mozillavr"></a-text>
     </a-entity>
 
     <!-- ===== AMBIENT DECORATIONS ===== -->
